@@ -7,6 +7,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.stream.Stream;
 
 public class Main {
@@ -18,27 +20,26 @@ public class Main {
             writer.write("");
 
             try (Stream<Path> paths = Files.walk(Paths.get(path))) {
-            paths
-                    .filter(Files::isRegularFile).filter(object -> object.toString().endsWith(".png")).forEach(
-                    object -> {
-                        try {
+                paths
+                        .filter(Files::isRegularFile).filter(object -> object.toString().endsWith(".png")).forEach(
+                        object -> {
+                            try {
                                 StringBuilder sb = new StringBuilder();
-                                  String result = recognize(object); // << TODO
-                                writer.append(result);
-                                System.out.println("done");
+                                String result = recognize(object); // << TODO
+                                writer.append(object.getFileName() + ";" + result);
+//                                System.out.println("done");
                             } catch (IOException e) {
-                            e.printStackTrace();
+                                e.printStackTrace();
+                            }
                         }
-                    }
-            );
-        } catch (FileNotFoundException e) {
+                );
+            } catch (FileNotFoundException e) {
                 System.out.println(e.getMessage());
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
-
 
 
     private static String recognize(Path object) throws IOException {
@@ -64,7 +65,7 @@ public class Main {
         // экран не строго по середине
         // нужно добавить оффсеты для выравнивания
         int verticalOffset = 64;
-        BufferedImage full = img.getSubimage(0, verticalOffset, img.getWidth(),  img.getHeight() - verticalOffset);
+        BufferedImage full = img.getSubimage(0, verticalOffset, img.getWidth(), img.getHeight() - verticalOffset);
         File fullFile = new File(String.format(".//output//full_%s", object.getFileName()));
         ImageIO.write(full, "png", fullFile);
 
@@ -80,33 +81,127 @@ public class Main {
 
         int offset = 3; // проскок
         int width = 65; // ширина карты (только белое, тень карты)
-        int scip = 8 -1; // ширина черного заполнения между карт без теней
+        int scip = 8 - 1; // ширина черного заполнения между карт без теней
+
+        BufferedImage[] imgs = new BufferedImage[5];
 
         for (int i = 0; i < 5; i++) {
-            // размер мини внутреннего экрана
-            if (offset > crop.getWidth()) {
-                offset = 0;
-            }
-            ImageIO.write(
-                    crop.getSubimage(0 + offset, 0, width - 2, crop.getHeight()), "png",
-                    new File(String.format(".//output//%d_сrop_%s", i, object.getFileName())));
-
+            imgs[i] = crop.getSubimage(0 + offset, 0, width - 2, crop.getHeight());
             offset += width + scip;
+        }
+
+        StringBuilder result = new StringBuilder();
+
+        for (int j = 0; j < imgs.length; j++) {
+            File name = new File(String.format(".//output//сrop_%s_%d.png", object.getFileName(), j));
+
+            ImageIO.write(imgs[j], "png", name);
+            // TODO: card maste?
+            // масти: ️ ️
+            // ♦️ Diamonds
+            // ♥️ Hearts
+            // ♠️ Spades
+            // ♣️ Clubs
+            Map<Integer, enumCardColors> CardCollors = new HashMap<>();
+
+            CardCollors.put(-14474458, enumCardColors.Black);
+            CardCollors.put(-15724526, enumCardColors.Black); //  (dark)
+            CardCollors.put(-3323575, enumCardColors.Red);
+            CardCollors.put(-10477022, enumCardColors.Red); //  (dark)
+            CardCollors.put(-1, enumCardColors.White);
+            CardCollors.put(-8882056, enumCardColors.White); // (dark)
+            CardCollors.put(-14013910, enumCardColors.empty);
+            CardCollors.put(-14474461, enumCardColors.empty);
+
+            Point firstLayer = new Point(41, 69);
+
+            // check for color maste
+            enumCardColors cardCollor = CardCollors.get(imgs[j].getRGB(firstLayer.x, firstLayer.y));
+            Map<enumCardColors, Point> CheckPixelCoordinate = new HashMap<>();
+            CheckPixelCoordinate.put(enumCardColors.Black, new Point(33, 60)); // для сравнения по крестям
+            CheckPixelCoordinate.put(enumCardColors.Red, new Point(42, 54)); // для сравнения по сердцам
+
+            // UTIL
+            if (cardCollor.equals(enumCardColors.Black) || cardCollor.equals(enumCardColors.Red)) {
+                int white = imgs[j].getRGB(45, 30);
+                if (CardCollors.get(white) == null) {
+                    System.out.printf("White: %d\r\n", white);
+                }
+            }
+
+            Point secondLayerPoint = null;
+            enumCardMastes mast = null;
+            enumCardColors secondLayerColor = null;
+
+            switch (cardCollor) {
+                case Black:
+                    secondLayerPoint = CheckPixelCoordinate.get(enumCardColors.Black);
+                    secondLayerColor = CardCollors.get(imgs[j].getRGB(secondLayerPoint.x, secondLayerPoint.y));
+                    if (secondLayerColor == enumCardColors.Black) {
+                        mast = enumCardMastes.Spades;
+                    } else {
+                        mast = enumCardMastes.Clubs;
+                    }
+                    break;
+                case Red:
+                    secondLayerPoint = CheckPixelCoordinate.get(enumCardColors.Red);
+                    secondLayerColor = CardCollors.get(imgs[j].getRGB(secondLayerPoint.x, secondLayerPoint.y));
+                    if (secondLayerColor == enumCardColors.Red) {
+                        mast = enumCardMastes.Diamonds;
+                    } else {
+                        mast = enumCardMastes.Hearts;
+                    }
+                    break;
+                case empty:
+                    mast = null;
+                    secondLayerColor = enumCardColors.empty;
+                    break;
+                default:
+                    System.out.println("???");
+            }
+            // TODO: card name?
+            // числа: 2 : 10
+            // карты: A Ja Q K Jo
+            String card = "-";
+
+
+            result.append(card);
+
+            String mast_string = mast == null ? "-" : mast.toString();
+            result.append(mast_string.toLowerCase());
+
 
         }
 
-        // TODO: card name?
-        // TODO: card maste?
+        result.append("\r\n");
+        System.out.printf("File: %s, Result: %s", object.getFileName(), result);
 
-        // числа: 2 : 10
-        // карты: A Ja Q K Jo
-        // масти: ️ ️
-        // ♦️ Diamonds
-        // ♥️ Hearts
-        // ♠️ Spades
-        // ♣️ Clubs
         String targetOfCardSet = "4hQd7s";
-        targetOfCardSet = String.format("Width: %d, Height: %d, File: %s \r\n", img.getWidth(), img.getHeight(), object.toString());
-        return targetOfCardSet;
+        System.out.println("@@@@@@@@@@@@@@@@@");
+        return result.toString();
+    }
+
+    public static class Point {
+        int x;
+        int y;
+
+        public Point(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    public enum enumCardColors {
+        Black,
+        Red,
+        White,
+        empty
+    }
+
+    public enum enumCardMastes {
+        Diamonds, // ♦️ Diamonds
+        Hearts, // ♥️ Hearts
+        Spades, // ♠️ Spades
+        Clubs, // ♣️ Clubs
     }
 }
