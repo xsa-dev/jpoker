@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 
 public class Main {
 
+    static final int limit = 10;
     static final boolean debug = false;
     static final boolean to_csv = true;
     static Map<String, String> cardNamesMap = new HashMap<>() {{
@@ -199,7 +200,7 @@ public class Main {
 
         try (Stream<Path> paths = Files.walk(Paths.get(path))) {
             paths
-                    .filter(Files::isRegularFile).filter(object -> object.toString().endsWith(".png")).limit(10).forEach(
+                    .filter(Files::isRegularFile).filter(object -> object.toString().endsWith(".png")).limit(limit).forEach(
                     object -> {
                         try {
                             System.out.println(object.getFileName() + " - " + recognize(object).replace("--", ""));
@@ -220,12 +221,13 @@ public class Main {
             File fullFile = new File(String.format(".//output//full_%s", object.getFileName()));
             ImageIO.write(full, "png", fullFile);
         }
-        BufferedImage crop = full.getSubimage(133 + 7, 495 + 26, 374 - 18, 99 - 10);
+        BufferedImage crop = full.getSubimage(140, 521, 356, 89);
 
         if (debug) {
             File cropFile = new File(String.format(".//output//сrop_%s", object.getFileName()));
             ImageIO.write(crop, "png", cropFile);
         }
+
         int offset = 3; // проскок
         int width = 65; // ширина карты (только белое, тень карты)
         int scip = 8 - 1; // ширина черного заполнения между карт без теней
@@ -247,6 +249,7 @@ public class Main {
             Map<enumCardColors, Point> CheckPixelCoordinate = new HashMap<>();
             CheckPixelCoordinate.put(enumCardColors.Black, new Point(33, 60)); // для сравнения по крестям
             CheckPixelCoordinate.put(enumCardColors.Red, new Point(42, 54)); // для сравнения по сердцам
+
             // UTIL FOR FIND UNRECOGNIZED OBJECT
             boolean b = whiteFinder(imgs, number, cardCollor);
             Point secondLayerPoint;
@@ -280,16 +283,68 @@ public class Main {
             String card = "-";
             if (b) {
                 // выбираем изображение в примерной области значения карты как вариант поиск изменённого цвета пикселя до отличного цвета от белого или тёмно-белого
+
                 int cardNameOffsetX = 0;
                 // немного подравниваем, в следующей итерации можно убрать
                 if (number == 3) {
                     cardNameOffsetX = -2;
                 }
                 BufferedImage cardName = imgs[number].getSubimage(5 + cardNameOffsetX, 5, 40, 25);
-                File cardNameIgm = new File(String.format(".//output//сrop_%s_%d_name.png", object.getFileName(), number));
-                if (debug) {
+                if (true) {
+                    File cardNameIgm = new File(String.format(".//output//сrop_%s_%d_name.png", object.getFileName(), number));
                     ImageIO.write(cardName, "png", cardNameIgm);
                 }
+
+                // TODO ПЕРЕДЕЛЫВАЕМ
+                // TODO Определять исходные координаты начала и области на основании изменения цвета:
+
+                Point leftToRightBottomToTop = new Point(0, 0);
+                boolean finded_left = false;
+                int minX = 100;
+                int maxX = 0;
+                int minY = 100;
+                int maxY = 0;
+
+
+                // еще может быть желтый
+                // тут заполняем переменные :
+                // самый верхний цветной пиксель
+                // самый нижний цветной пиксель
+                // самый левый цветной пиксель
+                // самый правый цветной пиксель
+
+                // курсор идёт сверху вниз, слева на право
+                for (int y = 0; y < cardName.getHeight(); y++) {
+                    for (int x = 0; x < cardName.getWidth(); x++) {
+                        int pixelColor = cardName.getRGB(x, y);
+                        enumCardColors colorOfCard = CardCollors.get(pixelColor);
+                        if ((colorOfCard == enumCardColors.Black) || (colorOfCard == enumCardColors.Red)) {
+                            if (minX > x) {
+                                minX = x;
+                            } else if (maxX < x) {
+                                maxX = x;
+                            }
+                        }
+                    }
+                    if (minY > y) {
+                        minY = y;
+                    } else if (maxY < y) {
+                        maxY = y;
+                    }
+                }
+
+                System.out.printf("MinX: %d, MaxX: %d, MinY: %d, MaxY: %d\r\n", minX, maxX, minY, maxY);
+                BufferedImage cardNameSubimage = cardName.getSubimage(minX, minY, maxX - minX, maxY - minY);
+                if (true) {
+                    File cardNameIgm = new File(String.format(".//output//сrop_%s_%d_nameRRR.png", object.getFileName(), number));
+                    ImageIO.write(cardNameSubimage, "png", cardNameIgm);
+                }
+
+                if (true) {
+                    File cardNameIgm = new File(String.format(".//output//сrop_%s_%d_name.png", object.getFileName(), number));
+                    ImageIO.write(cardName, "png", cardNameIgm);
+                }
+
                 // card color mode
                 enumCardColorMode cardColorMode = enumCardColorMode.Normal;
                 int cardColorModePixel = imgs[number].getRGB(45, 30);
@@ -312,12 +367,14 @@ public class Main {
                         }
                     }
                 }
+
                 File cardNameIgmBW = new File(String.format(".//output//сrop_%s_%d_name_BW.png", object.getFileName(), number));
                 BufferedImage cardNameIgmBwImg = new BufferedImage(
                         cardName.getWidth(), cardName.getHeight(),
                         BufferedImage.TYPE_BYTE_BINARY);
                 Graphics2D graphics = cardNameIgmBwImg.createGraphics();
                 graphics.drawImage(cardName, 0, 0, null);
+
                 // сохранение в мапу значений изображения
                 String imageHash = encodeToString(cardNameIgmBwImg, "png");
                 if (cardNamesMap.get(imageHash) == null) {
@@ -326,11 +383,7 @@ public class Main {
                         ImageIO.write(cardNameIgmBwImg, "png", cardNameIgmBW);
                     }
                     System.out.printf("%s - %s\r\n", cardNameIgmBW, imageHash);
-                    System.out.println("Hash added?");
                     card = "?";
-                    // open file
-                    // input for learning
-                    // seriliaze map to file
                 } else {
                     if (true) {
                         if (debug) {
