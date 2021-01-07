@@ -5,11 +5,15 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.*;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.awt.color.ColorSpace;
+import java.awt.image.BufferedImage;
+import java.awt.image.ColorConvertOp;
 
 public class Main {
 
@@ -17,6 +21,7 @@ public class Main {
     static boolean Debug = false;
     static String DefaultPath = "/Users/xsa-osx/Downloads/java_test_task/imgs/onlyfive";
     static int FilesLimit = 50;
+    static int Method = 0;
 
     // model
     static Map<String, String> CardNames = new HashMap<>();
@@ -29,6 +34,7 @@ public class Main {
         put(-8882056, EnumCardColors.White); // (dark)
         put(-14013910, EnumCardColors.empty);
         put(-14474461, EnumCardColors.empty);
+        put(-678365, EnumCardColors.yellow); // (dark?)
     }};
     static Map<EnumCardColors, Point> CheckPixelCoordinate = new HashMap<>() {{
         put(EnumCardColors.Black, new Point(33, 60)); // для сравнения по крестям
@@ -47,8 +53,14 @@ public class Main {
             } else {
                 path = args[0];
                 System.out.printf("Using path: %s\r\n", path);
-                FilesLimit = Integer.parseInt(args[1]);
+                try {
+                    FilesLimit = Integer.parseInt(args[1]);
+                    Debug = Boolean.parseBoolean(args[2]);
+                    Method = Integer.parseInt(args[3]);
+                } catch (Exception exception) {
+                }
             }
+
         }
 
         try (Stream<Path> paths = Files.walk(Paths.get(path))) {
@@ -64,37 +76,6 @@ public class Main {
                         }
                     }
             );
-        }
-    }
-
-    private static void cardNamesLoadHashMap() throws IOException {
-        final BufferedReader br = new BufferedReader(new FileReader("card_names.csv"));
-        while (br.ready()) {
-            cardHashLoadToMap(new CardName(br.readLine()));
-        }
-        if (Debug) {
-            System.out.printf("Hashes in model: %d\r\n", CardNames.entrySet().stream().count());
-        }
-    }
-
-    private static void cardHashLoadToMap(CardName cardName) {
-        if (!CardNames.containsKey(cardName.getHash())) {
-            CardNames.put(cardName.getHash(), cardName.getName());
-        }
-    }
-
-    private static void cardSaveHashMapToCsv(Map<String, String> map) {
-        String eol = System.getProperty("line.separator");
-        try (Writer writer = new FileWriter("card_names.csv")) {
-            writer.write("");
-            for (Map.Entry<String, String> entry : CardNames.entrySet()) {
-                writer.append(entry.getKey())
-                        .append(';')
-                        .append(entry.getValue())
-                        .append(eol);
-            }
-        } catch (IOException ex) {
-            ex.printStackTrace(System.err);
         }
     }
 
@@ -124,6 +105,15 @@ public class Main {
             // ImageIO.write(cardName, "png", cardNameIgm);
         }
 
+        // TODO
+        // просто смотрим восемь точек:
+        // x.. = x/8
+        // y.. = y/8
+
+        // x1,x2,x3,x4,x5,x6,x7,x8
+        // y1,y2,y3,y4,y5,y6,y7,y8
+        // o - white, 1 - black
+
         return "z";
     }
 
@@ -134,7 +124,7 @@ public class Main {
             return "-";
         }
 
-        int cardNameOffsetX = 5;
+        int cardNameOffsetX = 2;
         BufferedImage cardName = image.getSubimage(cardNameOffsetX, 5, 40, 25);
 
         if (Debug) {
@@ -142,38 +132,39 @@ public class Main {
             ImageIO.write(cardName, "png", cardNameIgm);
         }
 
-        Point leftToRightBottomToTop = new Point(0, 0);
-        boolean finded_left = false;
-        int minX = 100;
-        int maxX = 0;
-        int minY = 100;
-        int maxY = 0;
+//        Point leftToRightBottomToTop = new Point(0, 0);
+//        boolean finded_left = false;
+//        int minX = 100;
+//        int maxX = 0;
+//        int minY = 100;
+//        int maxY = 0;
+//
+//        // курсор идёт сверху вниз, слева на право
+//        for (int y = 0; y < cardName.getHeight(); y++) {
+//            for (int x = 0; x < cardName.getWidth(); x++) {
+//                int pixelColor = cardName.getRGB(x, y);
+//                EnumCardColors colorOfCard = CardCollors.get(pixelColor);
+//                if ((colorOfCard == EnumCardColors.Black) || (colorOfCard == EnumCardColors.Red)) {
+//                    if (minX > x) {
+//                        minX = x;
+//                    } else if (maxX < x) {
+//                        maxX = x;
+//                    }
+//                    if (minY > y) {
+//                        minY = y;
+//                    } else if (maxY < y) {
+//                        maxY = y;
+//                    }
+//                }
+//            }
+//        }
+//
+//        if (false) {
+//            System.out.printf("MinX: %d, MaxX: %d, MinY: %d, MaxY: %d\r\n", minX, maxX, minY, maxY);
+//        }
 
-        // курсор идёт сверху вниз, слева на право
-        for (int y = 0; y < cardName.getHeight(); y++) {
-            for (int x = 0; x < cardName.getWidth(); x++) {
-                int pixelColor = cardName.getRGB(x, y);
-                EnumCardColors colorOfCard = CardCollors.get(pixelColor);
-                if ((colorOfCard == EnumCardColors.Black) || (colorOfCard == EnumCardColors.Red)) {
-                    if (minX > x) {
-                        minX = x;
-                    } else if (maxX < x) {
-                        maxX = x;
-                    }
-                    if (minY > y) {
-                        minY = y;
-                    } else if (maxY < y) {
-                        maxY = y;
-                    }
-                }
-            }
-        }
-
-        if (false) {
-            System.out.printf("MinX: %d, MaxX: %d, MinY: %d, MaxY: %d\r\n", minX, maxX, minY, maxY);
-        }
-
-        BufferedImage cardNameSubimage = cardName.getSubimage(minX, minY, maxX - minX, maxY - minY);
+        /// BufferedImage cardNameSubimage = cardName.getSubimage(minX, minY, maxX - minX, maxY - minY);
+        BufferedImage cardNameSubimage = cardName.getSubimage(5, 5, 20, 40);
         if (false) {
             File cardNameIgm = new File(String.format(".//output//сrop_%s_%d_nameRRR.png", object.getFileName(), number));
             ImageIO.write(cardNameSubimage, "png", cardNameIgm);
@@ -253,64 +244,111 @@ public class Main {
         return card;
     }
 
+    private static BufferedImage[] getCardVectorFromFullImage(BufferedImage full, Path object) throws IOException {
+        // считываем цент экрана
+        BufferedImage crop = full.getSubimage(120, 521, full.getWidth() - 220, 89);
+        BufferedImage[] cardVector = new BufferedImage[5];
+
+        // new variant for searching
+        int serchForLeftX;
+        int indexOfCard = 0;
+        int _width = 63;
+        for (int i = 0; i < full.getWidth() - 220; i++) {
+            int color = crop.getRGB(i, crop.getHeight() / 2);
+            EnumCardColors cardCollor = CardCollors.get(color);
+
+            if (cardCollor == EnumCardColors.White || cardCollor == EnumCardColors.yellow) {
+                // finded card
+                // YELLOW HERE TOO!
+                cardVector[indexOfCard] = crop.getSubimage(i, 0, _width, crop.getHeight());
+                i += _width;
+                indexOfCard++;
+            }
+        }
+
+        if (cardVector != null) {
+            return cardVector;
+        }
+
+        if (Debug) {
+            File cropFile = new File(String.format(".//output//crop_%s", object.getFileName()));
+            ImageIO.write(crop, "png", cropFile);
+        }
+
+        // наполняем внутренний вектор изображений карт
+        int offset = 3; // проскок
+        int width = 65; // ширина карты (только белое, тень карты)
+        int scip = 8 - 1; // ширина черного заполнения между карт без теней
+        for (int i = 0; i < 5; i++) {
+            cardVector[i] = crop.getSubimage(offset, 0, width - 2, crop.getHeight());
+            offset += width + scip;
+        }
+        return cardVector;
+    }
+
     private static String getRecognizedStringForFullImage(Path object) throws IOException {
         // подготавливаем резутат
         StringBuilder result = new StringBuilder();
 
         // считываем полную картинку
         BufferedImage img = ImageIO.read(object.toFile());
-        int verticalOffset = 64;
+
+        int verticalOffset = 64; // это для тестов ставим 0, на нормальных данных нужно ставить 64
+
         BufferedImage full = img.getSubimage(0, verticalOffset, img.getWidth(), img.getHeight() - verticalOffset);
         File fullFile = new File(String.format(".//output//full_%s", object.getFileName()));
-        if (Debug) {
-            ImageIO.write(full, "png", fullFile);
-        }
 
-        // наполняем внутренний вектор изображений карт
-        BufferedImage crop = full.getSubimage(140, 521, 356, 89);
-        if (Debug) {
-            File cropFile = new File(String.format(".//output//crop_%s", object.getFileName()));
-            ImageIO.write(crop, "png", cropFile);
-        }
-        int offset = 3; // проскок
-        int width = 65; // ширина карты (только белое, тень карты)
-        int scip = 8 - 1; // ширина черного заполнения между карт без теней
-        BufferedImage[] cardVector = new BufferedImage[5];
-        for (int i = 0; i < 5; i++) {
-            cardVector[i] = crop.getSubimage(offset, 0, width - 2, crop.getHeight());
-            offset += width + scip;
-        }
+        BufferedImage[] cardVector = getCardVectorFromFullImage(full, object);
 
-        for (int index = 0; index < cardVector.length; index++) {
+        for (int index = 0; index < Arrays.stream(cardVector).filter(o -> o != null).toArray().length; index++) {
             File name = new File(String.format(".//output//сrop_%s_%d.png", object.getFileName(), index));
             if (Debug) {
                 ImageIO.write(cardVector[index], "png", name);
             }
 
-            // check for color maste
-            EnumCardMastes mast = getMastForCardImage(cardVector[index]);
+            // get card cardSuit
+            EnumCardMastes cardSuit = getCardSuitForCardImage(cardVector[index]);
 
-            String card = getCardnameForCardImage(cardVector[index], index, object);
+            // check card
+            String card;
+            switch (Method) {
+                case 0:
+                    card = getCardnameForCardImage(cardVector[index], index, object);
+                    break;
+                case 1:
+                    card = getCardnameForCardImageEnchanced(cardVector[index], index, object);
+                    break;
+                default:
+                    card = getCardnameForCardImage(cardVector[index], index, object);
+                    break;
+            }
 
             //endregion
             result.append(card);
-            String mast_string = mast == null ? "-" : mast.toString();
+            String mast_string = cardSuit == null ? "-" : cardSuit.toString();
 
-            String patternString = "[A-z0-9]{8,14}";
-            Pattern pattern = Pattern.compile(patternString);
-            if (Pattern.matches(patternString, result.toString())) {
-                System.out.println("%$%$%$%$%$%$%$%$%$%$%$%$");
-                Files.copy(fullFile.toPath(), new File(String.format(".//output//hard//%s", object.getFileName())).toPath());
+            if (Debug) {
+                String patternString = "[A-z0-9]{8,14}";
+                Pattern pattern = Pattern.compile(patternString);
+                if (Pattern.matches(patternString, result.toString())) {
+                    System.out.println("%$%$%$%$%$%$%$%$%$%$%$%$");
+                    try {
+                        Files.copy(fullFile.toPath(), new File(String.format(".//output//hard//%s", object.getFileName())).toPath());
+                    } catch (Exception exception) {
+                    }
+                }
             }
 
             result.append(mast_string.substring(0, 1).toLowerCase());
         }
 
         result.append("\r");
+
         if (Debug) {
             System.out.printf("File: %s, Result: %s", object.getFileName(), result);
             System.out.println("@@@@@@@@@@@@@@@@@");
         }
+
         return result.toString();
     }
 
@@ -339,7 +377,7 @@ public class Main {
         return cardCollor;
     }
 
-    private static EnumCardMastes getMastForCardImage(BufferedImage image) {
+    private static EnumCardMastes getCardSuitForCardImage(BufferedImage image) {
         EnumCardMastes mast = null;
         Point secondLayerPoint;
 
@@ -376,6 +414,37 @@ public class Main {
         return mast;
     }
 
+    private static void cardNamesLoadHashMap() throws IOException {
+        final BufferedReader br = new BufferedReader(new FileReader("card_names.csv"));
+        while (br.ready()) {
+            cardHashLoadToMap(new CardName(br.readLine()));
+        }
+        if (Debug) {
+            System.out.printf("Hashes in model: %d\r\n", CardNames.entrySet().stream().count());
+        }
+    }
+
+    private static void cardHashLoadToMap(CardName cardName) {
+        if (!CardNames.containsKey(cardName.getHash())) {
+            CardNames.put(cardName.getHash(), cardName.getName());
+        }
+    }
+
+    private static void cardSaveHashMapToCsv(Map<String, String> map) {
+        String eol = System.getProperty("line.separator");
+        try (Writer writer = new FileWriter("card_names.csv")) {
+            writer.write("");
+            for (Map.Entry<String, String> entry : CardNames.entrySet()) {
+                writer.append(entry.getKey())
+                        .append(';')
+                        .append(entry.getValue())
+                        .append(eol);
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace(System.err);
+        }
+    }
+
     private static class CardName {
         String name;
         String hash;
@@ -408,7 +477,8 @@ public class Main {
         Black,
         Red,
         White,
-        empty
+        empty,
+        yellow
     }
 
     private enum EnumCardMastes {
