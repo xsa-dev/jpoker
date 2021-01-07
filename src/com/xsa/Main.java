@@ -19,9 +19,9 @@ public class Main {
 
     // options
     static boolean Debug = false;
+    static boolean Learn = false;
     static String DefaultPath = "/Users/xsa-osx/Downloads/java_test_task/imgs/onlyfive";
     static int FilesLimit = 50;
-    static int Method = 0;
 
     // model
     static Map<String, String> CardNames = new HashMap<>();
@@ -56,11 +56,10 @@ public class Main {
                 try {
                     FilesLimit = Integer.parseInt(args[1]);
                     Debug = Boolean.parseBoolean(args[2]);
-                    Method = Integer.parseInt(args[3]);
+                    Learn = Boolean.parseBoolean(args[3]);
                 } catch (Exception exception) {
                 }
             }
-
         }
 
         try (Stream<Path> paths = Files.walk(Paths.get(path))) {
@@ -80,168 +79,141 @@ public class Main {
     }
 
     private static String getCardnameForCardImageEnchanced(BufferedImage image, int number, Path object) throws IOException {
-        // вообще получается что нужно
-        // первым слоем получать все картинки начиная с первого:
-        // - тени белого,
-        // - тени затемнённого белого,
-        // - тени желтого,
-        // - тени затемнённого желтого
-        // выбираем изображение в примерной области значения карты как вариант поиск изменённого цвета пикселя до отличного цвета от белого или тёмно-белого
-
-        // еще может быть желтый
-        // тут заполняем переменные :
-        // самый верхний цветной пиксель
-        // самый нижний цветной пиксель
-        // самый левый цветной пиксель
-        // самый правый цветной пиксель
-
-        // TODO ПОСМОТРИ КАРТИНКИ ОТ КРАЙНЕЙ ЛЕВОЙ ТОЧКИ ПАРУ ПИКСЕЛЕВ ЛЕВОВВЕРХ ?И ПАРУ ПИКСЕЛЕЙ ОТ КРАЙНЕЙ ПРАВОЙ ВНИЗ
-
-        if (Debug) {
-            // Color color = new Color(0, 255, 0);
-            // cardName.setRGB(maxX, maxY, color.getRGB());
-            // cardName.setRGB(minX, minY, color.getRGB());
-            // File cardNameIgm = new File(String.format(".//output//сrop_%s_%d_name.png", object.getFileName(), number));
-            // ImageIO.write(cardName, "png", cardNameIgm);
-        }
-
-        // TODO
-        // просто смотрим восемь точек:
-        // x.. = x/8
-        // y.. = y/8
-
-        // x1,x2,x3,x4,x5,x6,x7,x8
-        // y1,y2,y3,y4,y5,y6,y7,y8
-        // o - white, 1 - black
-
+        // https://habr.com/ru/post/488690/
         return "z";
     }
 
-    private static String getCardnameForCardImage(BufferedImage image, int number, Path object) throws IOException {
-        String card = null;
-        EnumCardColors cardCollor = getColorForPoint(image);
-        if (!cardCollor.equals(EnumCardColors.Red) && !cardCollor.equals(EnumCardColors.Black)) {
-            return "-";
-        }
+    private static BufferedImage convertImageToBW(BufferedImage image) {
+        BufferedImage cardNameIgmBwImg = new BufferedImage(
+                image.getWidth(), image.getHeight(),
+                BufferedImage.TYPE_BYTE_BINARY);
+        Graphics2D graphics = cardNameIgmBwImg.createGraphics();
+        graphics.drawImage(image, 0, 0, null);
+        return cardNameIgmBwImg;
+    }
 
-        int cardNameOffsetX = 2;
-        BufferedImage cardName = image.getSubimage(cardNameOffsetX, 5, 40, 25);
-
-        if (Debug) {
-            File cardNameIgm = new File(String.format(".//output//сrop_%s_%d_name.png", object.getFileName(), number));
-            ImageIO.write(cardName, "png", cardNameIgm);
-        }
-
-//        Point leftToRightBottomToTop = new Point(0, 0);
-//        boolean finded_left = false;
-//        int minX = 100;
-//        int maxX = 0;
-//        int minY = 100;
-//        int maxY = 0;
-//
-//        // курсор идёт сверху вниз, слева на право
-//        for (int y = 0; y < cardName.getHeight(); y++) {
-//            for (int x = 0; x < cardName.getWidth(); x++) {
-//                int pixelColor = cardName.getRGB(x, y);
-//                EnumCardColors colorOfCard = CardCollors.get(pixelColor);
-//                if ((colorOfCard == EnumCardColors.Black) || (colorOfCard == EnumCardColors.Red)) {
-//                    if (minX > x) {
-//                        minX = x;
-//                    } else if (maxX < x) {
-//                        maxX = x;
-//                    }
-//                    if (minY > y) {
-//                        minY = y;
-//                    } else if (maxY < y) {
-//                        maxY = y;
-//                    }
-//                }
-//            }
-//        }
-//
-//        if (false) {
-//            System.out.printf("MinX: %d, MaxX: %d, MinY: %d, MaxY: %d\r\n", minX, maxX, minY, maxY);
-//        }
-
-        /// BufferedImage cardNameSubimage = cardName.getSubimage(minX, minY, maxX - minX, maxY - minY);
-        BufferedImage cardNameSubimage = cardName.getSubimage(5, 5, 20, 40);
-        if (false) {
-            File cardNameIgm = new File(String.format(".//output//сrop_%s_%d_nameRRR.png", object.getFileName(), number));
-            ImageIO.write(cardNameSubimage, "png", cardNameIgm);
-        }
-
+    private static EnumCardColorMode getCardColorMode(BufferedImage image) {
         // card color mode
         EnumCardColorMode cardColorMode = EnumCardColorMode.Normal;
+
         int cardColorModePixel = image.getRGB(45, 30);
         int cardColorMixedMarker = -8882056;
         if (cardColorModePixel == cardColorMixedMarker) {
             cardColorMode = EnumCardColorMode.Darked;
         }
 
+        return cardColorMode;
+    }
+
+    private static BufferedImage convertToLitedMode(BufferedImage image, EnumCardColorMode cardColorMode) {
         // convert to black and white
+        int cardColorModePixel = image.getRGB(45, 30);
+
         if (cardColorMode == EnumCardColorMode.Darked) {
             // убираем попиксельно цвет
-            for (int y = 0; y < cardName.getHeight(); y++) {
-                for (int x = 0; x < cardName.getWidth(); x++) {
-                    int pixelColor = cardName.getRGB(x, y);
+            for (int y = 0; y < image.getHeight(); y++) {
+                for (int x = 0; x < image.getWidth(); x++) {
+                    int pixelColor = image.getRGB(x, y);
                     boolean isDarkColor = (pixelColor == cardColorModePixel);
                     if (isDarkColor) {
-                        cardName.setRGB(x, y, -1);
+                        image.setRGB(x, y, -1);
                     } else {
-                        cardName.setRGB(x, y, pixelColor);
+                        image.setRGB(x, y, pixelColor);
                     }
                 }
             }
         }
+        return image;
+    }
 
-        File cardNameIgmBW = new File(String.format(".//output//сrop_%s_%d_name_BW.png", object.getFileName(), number));
-        BufferedImage cardNameIgmBwImg = new BufferedImage(
-                cardNameSubimage.getWidth(), cardNameSubimage.getHeight(),
-                BufferedImage.TYPE_BYTE_BINARY);
-        Graphics2D graphics = cardNameIgmBwImg.createGraphics();
-        graphics.drawImage(cardNameSubimage, 0, 0, null);
+    private static String getCardnameForCardImage(BufferedImage image, int number, Path object) throws IOException {
+        String card = null;
+        EnumCardColors cardCollor = getColorForPoint(image);
 
-        if (Debug) {
-            ImageIO.write(cardNameIgmBwImg, "png", cardNameIgmBW);
+        if (!cardCollor.equals(EnumCardColors.Red) && !cardCollor.equals(EnumCardColors.Black)) {
+            return "-";
         }
 
-        // сохранение в мапу значений изображения
-        String imageHash = encodeImageToString(cardNameIgmBwImg, "png");
-        if (CardNames.get(imageHash) == null) {
-            // здесь начинаем обучать модель
-            card = "?";
+        EnumCardColorMode colorMode = getCardColorMode(image);
+        image = convertToLitedMode(image, colorMode);
+
+        BufferedImage cardName = image.getSubimage(2, 3, 40, 30);
+
+
+        // String imageHash = encodeImageToString(cardNameBW, "png"); // TODO
+
+        BufferedImage cardNameBW = convertImageToBW(cardName);
+        File cardNameIgmBW = new File(String.format(".//output//сrop_%s_%d_name_BW.png", object.getFileName(), number));
+        ImageIO.write(cardNameBW, "png", cardNameIgmBW);
+
+        String imageHash = getBinaryStringForPixels(cardNameBW);
+
+        int min = 1000000;
+        String findSymbol = "?";
+        for (Map.Entry<String, String> entry : CardNames.entrySet()) {
+            int levenshtein = levenshtein(imageHash.toString(), entry.getValue());
+            if (levenshtein < min) {
+                min = levenshtein;
+                findSymbol = entry.getKey();
+            }
+        }
+        card = findSymbol;
+        if (Learn) {
+            // open file
             try {
                 Desktop desktop = null;
                 if (Desktop.isDesktopSupported()) {
                     desktop = Desktop.getDesktop();
                 }
                 desktop.open(cardNameIgmBW);
-                System.out.printf("%s - %s\r\n", cardNameIgmBW, CardNames.get(imageHash));
-                System.out.println("Plese validate image:");
-                BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-                String answer = br.readLine();
-                CardNames.put(imageHash, answer.trim().toUpperCase());
-                card = answer.trim().toUpperCase();
             } catch (IOException ioe) {
                 ioe.printStackTrace();
             }
-            if (Debug) {
-                System.out.printf("%s - %s\r\n", cardNameIgmBW, imageHash);
-            }
-        } else {
-            if (Debug) {
-                if (Debug) {
-                    System.out.printf("%s - %s\r\n", cardNameIgmBW, CardNames.get(imageHash));
-                }
-            }
-            card = CardNames.get(imageHash);
-            File rCard = new File(String.format(".//output//_%s//%d%s-%s-%s.png", card, number, cardColorMode, card, imageHash.replace("/", "")));
-            if (Debug) {
-                ImageIO.write(cardNameIgmBwImg, "png", rCard);
+            // valid or not
+            System.out.printf("Plese validate image. This is %s?\r\n", findSymbol);
+            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+            String answer = br.readLine();
+            if (answer.toLowerCase().equals("y")) {
+                card = findSymbol.trim().toUpperCase();
+            } else {
+                System.out.println("Please write a valid card name for this hash.");
+                br = new BufferedReader(new InputStreamReader(System.in));
+                answer = br.readLine();
+                CardNames.put(answer.trim().toUpperCase(), imageHash);
+                card = answer.trim().toUpperCase();
             }
         }
 
         return card;
+    }
+
+    public static int levenshtein(String targetStr, String sourceStr) {
+        int m = targetStr.length(), n = sourceStr.length();
+        int[][] delta = new int[m + 1][n + 1];
+        for (int i = 1; i <= m; i++)
+            delta[i][0] = i;
+        for (int j = 1; j <= n; j++)
+            delta[0][j] = j;
+        for (int j = 1; j <= n; j++)
+            for (int i = 1; i <= m; i++) {
+                if (targetStr.charAt(i - 1) == sourceStr.charAt(j - 1))
+                    delta[i][j] = delta[i - 1][j - 1];
+                else
+                    delta[i][j] = Math.min(delta[i - 1][j] + 1,
+                            Math.min(delta[i][j - 1] + 1, delta[i - 1][j - 1] + 1));
+            }
+        return delta[m][n];
+    }
+
+    private static String getBinaryStringForPixels(BufferedImage symbol) {
+        short whiteBg = -1;
+        StringBuilder binaryString = new StringBuilder();
+        for (short y = 1; y < symbol.getHeight(); y++)
+            for (short x = 1; x < symbol.getWidth(); x++) {
+                int rgb = symbol.getRGB(x, y);
+                binaryString.append(rgb == whiteBg ? " " : "*");
+            }
+        return binaryString.toString();
     }
 
     private static BufferedImage[] getCardVectorFromFullImage(BufferedImage full, Path object) throws IOException {
@@ -266,28 +238,24 @@ public class Main {
             }
         }
 
-        if (cardVector != null) {
-            return cardVector;
-        }
-
+        File cropFile = new File(String.format(".//output//crop_%s", object.getFileName()));
+        ImageIO.write(crop, "png", cropFile);
         if (Debug) {
-            File cropFile = new File(String.format(".//output//crop_%s", object.getFileName()));
-            ImageIO.write(crop, "png", cropFile);
+            try {
+                Desktop desktop = null;
+                if (Desktop.isDesktopSupported()) {
+                    desktop = Desktop.getDesktop();
+                }
+                desktop.open(cropFile);
+            } catch (IOException ioe) {
+                ioe.printStackTrace();
+            }
         }
 
-        // наполняем внутренний вектор изображений карт
-        int offset = 3; // проскок
-        int width = 65; // ширина карты (только белое, тень карты)
-        int scip = 8 - 1; // ширина черного заполнения между карт без теней
-        for (int i = 0; i < 5; i++) {
-            cardVector[i] = crop.getSubimage(offset, 0, width - 2, crop.getHeight());
-            offset += width + scip;
-        }
         return cardVector;
     }
 
     private static String getRecognizedStringForFullImage(Path object) throws IOException {
-        // подготавливаем резутат
         StringBuilder result = new StringBuilder();
 
         // считываем полную картинку
@@ -298,48 +266,15 @@ public class Main {
         BufferedImage full = img.getSubimage(0, verticalOffset, img.getWidth(), img.getHeight() - verticalOffset);
         File fullFile = new File(String.format(".//output//full_%s", object.getFileName()));
 
+
         BufferedImage[] cardVector = getCardVectorFromFullImage(full, object);
 
         for (int index = 0; index < Arrays.stream(cardVector).filter(o -> o != null).toArray().length; index++) {
-            File name = new File(String.format(".//output//сrop_%s_%d.png", object.getFileName(), index));
-            if (Debug) {
-                ImageIO.write(cardVector[index], "png", name);
-            }
-
             // get card cardSuit
             EnumCardMastes cardSuit = getCardSuitForCardImage(cardVector[index]);
-
-            // check card
-            String card;
-            switch (Method) {
-                case 0:
-                    card = getCardnameForCardImage(cardVector[index], index, object);
-                    break;
-                case 1:
-                    card = getCardnameForCardImageEnchanced(cardVector[index], index, object);
-                    break;
-                default:
-                    card = getCardnameForCardImage(cardVector[index], index, object);
-                    break;
-            }
-
-            //endregion
+            String card = getCardnameForCardImage(cardVector[index], index, object);
             result.append(card);
-            String mast_string = cardSuit == null ? "-" : cardSuit.toString();
-
-            if (Debug) {
-                String patternString = "[A-z0-9]{8,14}";
-                Pattern pattern = Pattern.compile(patternString);
-                if (Pattern.matches(patternString, result.toString())) {
-                    System.out.println("%$%$%$%$%$%$%$%$%$%$%$%$");
-                    try {
-                        Files.copy(fullFile.toPath(), new File(String.format(".//output//hard//%s", object.getFileName())).toPath());
-                    } catch (Exception exception) {
-                    }
-                }
-            }
-
-            result.append(mast_string.substring(0, 1).toLowerCase());
+            result.append(cardSuit.toString().substring(0, 1).toLowerCase());
         }
 
         result.append("\r");
@@ -425,8 +360,8 @@ public class Main {
     }
 
     private static void cardHashLoadToMap(CardName cardName) {
-        if (!CardNames.containsKey(cardName.getHash())) {
-            CardNames.put(cardName.getHash(), cardName.getName());
+        if (!CardNames.containsKey(cardName.getName())) {
+            CardNames.put(cardName.getName(), cardName.getHash());
         }
     }
 
@@ -435,7 +370,8 @@ public class Main {
         try (Writer writer = new FileWriter("card_names.csv")) {
             writer.write("");
             for (Map.Entry<String, String> entry : CardNames.entrySet()) {
-                writer.append(entry.getKey())
+                writer
+                        .append(entry.getKey())
                         .append(';')
                         .append(entry.getValue())
                         .append(eol);
