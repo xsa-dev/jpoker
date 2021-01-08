@@ -18,7 +18,7 @@ public class Main {
   // recognize options
   static final String outputDebugFolder = "./output/";
   static final String defaultImageType = "png";
-  static final int cardWith = 63, fullImageTopOffset = 64, minDiffer = 150;
+  static final int cardWith = 63, fullImageTopOffset = 64, minDiffer = 120;
 
   // statistics
   static int Valid, RecognizeError, AllItems = 0;
@@ -83,6 +83,18 @@ public class Main {
                   start = System.currentTimeMillis();
 
                   cardShapesLoadHashMapFromCsv();
+
+//                  for (Map.Entry<String, String> map: CardNames.entrySet()) {
+//                    System.out.println(map.getKey());
+//                    char[] chars = map.getValue().toCharArray();
+//                    for (int i = 0; i < chars.length; i++) {
+//                      System.out.printf("%c", chars[i]);
+//                      if (i % 34 == 0) {
+//                        System.out.println("");
+//                      }
+//                    }
+//                  }
+
                   System.out.printf(
                       "%s - %s\r\n ",
                       pokerTableScreenshot.getFileName(),
@@ -94,7 +106,7 @@ public class Main {
                     System.out.println(end - start);
                   }
 
-                  if (Learn) {
+                  if (Learn || true) {
                     cardShapesSaveHashMapToCsv();
                   }
 
@@ -180,7 +192,7 @@ public class Main {
     }
     card = findSymbol;
 
-    if (Learn) {
+    if (Learn || findSymbol.equals("?")) {
       // open file
       openFile(
           saveDebugImageToPath(cardNameBW, screenShotFile, DebugImagesTypes.CardNameBW, number));
@@ -218,13 +230,16 @@ public class Main {
   }
 
   private static String getBinaryStringForPixels(BufferedImage symbol) {
-    short whiteBg = -1;
+    short whiteColor = -1;
     StringBuilder binaryString = new StringBuilder();
-    for (short y = 1; y < symbol.getHeight(); y++)
+    for (short y = 1; y < symbol.getHeight(); y++) {
       for (short x = 1; x < symbol.getWidth(); x++) {
         int rgb = symbol.getRGB(x, y);
-        binaryString.append(rgb == whiteBg ? " " : "*");
+        binaryString.append(rgb == whiteColor ? " " : "*");
+        if (Debug) {System.out.printf("%s", rgb == whiteColor ? " " : "*");}
       }
+      if (Debug) {System.out.println("");};
+    }
     return binaryString.toString();
   }
 
@@ -342,7 +357,7 @@ public class Main {
     return mast;
   }
 
-  private static void cardShapesLoadHashMapFromCsv() throws IOException {
+  public static void cardShapesLoadHashMapFromCsv() throws IOException {
     final BufferedReader br = new BufferedReader(new FileReader("card_shapes.csv"));
     while (br.ready()) {
       cardShapeLoadHashMapFromString(new CardName(br.readLine()));
