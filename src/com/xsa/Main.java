@@ -6,14 +6,9 @@ import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.file.*;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import java.awt.color.ColorSpace;
-import java.awt.image.BufferedImage;
-import java.awt.image.ColorConvertOp;
 
 public class Main {
 
@@ -22,6 +17,12 @@ public class Main {
     static boolean Learn = false;
     static String DefaultPath = "/Users/xsa-osx/Downloads/java_test_task/imgs/onlyfive";
     static int FilesLimit = 50;
+
+    // statistics
+    static boolean Validation = false;
+    static int Valid = 0;
+    static int RecognizeError = 0;
+    static int AllItems = 0;
 
     // model
     static Map<String, String> CardNames = new HashMap<>();
@@ -54,9 +55,11 @@ public class Main {
                 path = args[0];
                 System.out.printf("Using path: %s\r\n", path);
                 try {
+                    // TODO
                     FilesLimit = Integer.parseInt(args[1]);
                     Debug = Boolean.parseBoolean(args[2]);
                     Learn = Boolean.parseBoolean(args[3]);
+                    Validation = Boolean.parseBoolean(args[4]);
                 } catch (Exception exception) {
                 }
             }
@@ -64,23 +67,25 @@ public class Main {
 
         try (Stream<Path> paths = Files.walk(Paths.get(path))) {
             paths
-                    .filter(Files::isRegularFile).filter(object -> object.toString().endsWith(".png")).limit(FilesLimit).forEach(
-                    object -> {
+                    .filter(Files::isRegularFile).skip(240).filter(object -> object.toString().endsWith(".png")).limit(FilesLimit).forEach(
+                    pokerTableScreenshot -> {
                         try {
                             cardNamesLoadHashMap();
-                            System.out.println(object.getFileName() + " - " + getRecognizedStringForFullImage(object).replace("--", ""));
-                            cardSaveHashMapToCsv(CardNames);
+                            System.out.println(pokerTableScreenshot.getFileName() + " - " + getRecognizedStringForFullImage(pokerTableScreenshot).replace("--", ""));
+                            if (Learn) {
+                                cardSaveHashMapToCsv(CardNames);
+                            }
+
                         } catch (IOException e) {
                             e.printStackTrace();
                         }
                     }
             );
         }
-    }
 
-    private static String getCardnameForCardImageEnchanced(BufferedImage image, int number, Path object) throws IOException {
-        // https://habr.com/ru/post/488690/
-        return "z";
+        if (Validation) {
+            System.out.printf("Statistics: \r\nAllFiles: %d, Valid: %d, RecognizeErrors: %d. ", AllItems, Valid, RecognizeError);
+        }
     }
 
     private static BufferedImage convertImageToBW(BufferedImage image) {
@@ -138,26 +143,23 @@ public class Main {
         image = convertToLitedMode(image, colorMode);
 
         BufferedImage cardName = image.getSubimage(2, 3, 40, 30);
-
-
-        // String imageHash = encodeImageToString(cardNameBW, "png"); // TODO
-
         BufferedImage cardNameBW = convertImageToBW(cardName);
         File cardNameIgmBW = new File(String.format(".//output//сrop_%s_%d_name_BW.png", object.getFileName(), number));
         ImageIO.write(cardNameBW, "png", cardNameIgmBW);
-
         String imageHash = getBinaryStringForPixels(cardNameBW);
-
-        int min = 1000000;
+        int min = 150;
         String findSymbol = "?";
         for (Map.Entry<String, String> entry : CardNames.entrySet()) {
-            int levenshtein = levenshtein(imageHash.toString(), entry.getValue());
-            if (levenshtein < min) {
-                min = levenshtein;
+            int differs = StringCompareFunction(imageHash.toString(), entry.getValue());
+            if (differs < min) {
+                min = differs;
                 findSymbol = entry.getKey();
             }
+            System.out.println("Symbol differ > 150;");
+            // TODO learn here in else?
         }
         card = findSymbol;
+
         if (Learn) {
             // open file
             try {
@@ -173,7 +175,7 @@ public class Main {
             System.out.printf("Plese validate image. This is %s?\r\n", findSymbol);
             BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
             String answer = br.readLine();
-            if (answer.toLowerCase().equals("y")) {
+            if (answer.toLowerCase().equals("y") || answer.toLowerCase().equals("")) {
                 card = findSymbol.trim().toUpperCase();
             } else {
                 System.out.println("Please write a valid card name for this hash.");
@@ -187,7 +189,7 @@ public class Main {
         return card;
     }
 
-    public static int levenshtein(String targetStr, String sourceStr) {
+    public static int StringCompareFunction(String targetStr, String sourceStr) {
         int m = targetStr.length(), n = sourceStr.length();
         int[][] delta = new int[m + 1][n + 1];
         for (int i = 1; i <= m; i++)
@@ -240,6 +242,8 @@ public class Main {
 
         File cropFile = new File(String.format(".//output//crop_%s", object.getFileName()));
         ImageIO.write(crop, "png", cropFile);
+
+        // TODO ???
         if (Debug) {
             try {
                 Desktop desktop = null;
@@ -266,7 +270,6 @@ public class Main {
         BufferedImage full = img.getSubimage(0, verticalOffset, img.getWidth(), img.getHeight() - verticalOffset);
         File fullFile = new File(String.format(".//output//full_%s", object.getFileName()));
 
-
         BufferedImage[] cardVector = getCardVectorFromFullImage(full, object);
 
         for (int index = 0; index < Arrays.stream(cardVector).filter(o -> o != null).toArray().length; index++) {
@@ -280,29 +283,29 @@ public class Main {
         result.append("\r");
 
         if (Debug) {
-            System.out.printf("File: %s, Result: %s", object.getFileName(), result);
-            System.out.println("@@@@@@@@@@@@@@@@@");
+            System.out.printf("File: %s, Result: %s\r\n", object.getFileName(), result);
+        }
+
+        if (Validation) {
+            /*
+                static boolean Validation = false;
+                static int Valid = 0;
+                static int RecognizeError = 0;
+                static int AllItems = 0;
+             */
+
+            System.out.println("Validate recognition:");
+            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+            String answer = br.readLine();
+            if (answer.toLowerCase().equals("y") || answer.toLowerCase().equals("")) {
+                Valid++;
+            } else {
+                RecognizeError++;
+            }
+            AllItems++;
         }
 
         return result.toString();
-    }
-
-    private static String encodeImageToString(BufferedImage image, String type) {
-        String imageString = null;
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-
-        try {
-            ImageIO.write(image, type, bos);
-            byte[] imageBytes = bos.toByteArray();
-
-            Base64.Encoder encoder = Base64.getEncoder();
-            imageString = encoder.encodeToString(imageBytes);
-
-            bos.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return imageString;
     }
 
     private static EnumCardColors getColorForPoint(BufferedImage image) {
@@ -386,8 +389,8 @@ public class Main {
         String hash;
 
         public CardName(String line) {
-            this.hash = line.split(";")[0];
-            this.name = line.split(";")[1];
+            this.name = line.split(";")[0];
+            this.hash = line.split(";")[1];
         }
 
         public String getName() {
