@@ -162,12 +162,12 @@ public class Main {
 
     String imageHash = getBinaryStringForPixels(cardNameBW);
 
-    for (int i = 0; i < imageHash.length(); i++) { //
-      System.out.printf("%c", imageHash.toCharArray()[i]);
-      if (i % 35 == 0) {
-        System.out.println("\r\n");
-      }
-    }
+//    for (int i = 0; i < imageHash.length(); i++) { //
+//      System.out.printf("%c", imageHash.toCharArray()[i]);
+//      if (i % 25 == 0) {
+//        System.out.println("\r\n");
+//      }
+//    }
 
     int min = minDiffer;
     String findSymbol = "?";
@@ -176,9 +176,6 @@ public class Main {
       if (differs < min) {
         min = differs;
         findSymbol = entry.getKey();
-      }
-      if (Debug) {
-        System.out.printf("Symbol differ > %d\r\n", minDiffer);
       }
     }
     card = findSymbol;
@@ -245,9 +242,6 @@ public class Main {
         fileIndex += cardWith;
         indexOfCard++;
       }
-    }
-    if (Debug) {
-      openFile(saveDebugImageToPath(crop, object, DebugImagesTypes.Center));
     }
     return cardVector;
   }
