@@ -4,30 +4,37 @@ import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 public class Main {
 
-    // default options
-    static boolean Debug = false, Learn = false, Validation = false;
+    //
+    static String result = null;
+
     static final String DefaultPath = "./poker_tables/";
-    static int FilesLimit = 500, FilesSkip = 0;
-
     // recognize options
-    static final String outputDebugFolder = "./output/";
+    static final String outputDebugFolder = "./debug_output/";
     static final String defaultImageType = "png";
-    static final int cardWith = 63, fullImageTopOffset = 64, minDiffer = 120;
-
+    static final int cardWith = 63, fullImageTopOffset = 64, minDiffer = 75;
+    // default options
+    static boolean Debug = false, Learn = false, Validation = false, NativeOpen = false;
+    static int FilesLimit = 500, FilesSkip = 0;
     // statistics
     static int Valid, RecognizeError, AllItems = 0;
     static long start;
     static long end;
 
     // model
-    static Map<String, String> CardNames = new HashMap<>();
-    static Map<Integer, EnumCardColors> CardsCharsMap =
+    static HashMap<String, String> CardShapes =
+            new HashMap<>();
+    static HashMap<Integer, EnumCardColors> CardsCharsMap =
             new HashMap<>() {
                 {
                     put(-14474458, EnumCardColors.Black);
@@ -41,18 +48,20 @@ public class Main {
                     put(-678365, EnumCardColors.yellow); // TODO after tests: dark?
                 }
             };
-    static Map<EnumCardColors, Point> CheckPixelCoordinate =
+    static HashMap<EnumCardColors, Point> CheckPixelCoordinate =
             new HashMap<>() {
                 {
                     put(EnumCardColors.Black, new Point(33, 60)); // для сравнения по крестям
                     put(EnumCardColors.Red, new Point(42, 54)); // для сравнения по сердцам
                 }
             };
+    static HashMap<String, String> ValidatedResults =
+            new HashMap<>();
+    static HashMap<String, String> Errors =
+            new HashMap<>();
+
 
     public static void main(String[] args) throws IOException {
-        // TODO PARAMS
-        // если параметр обязательный, и отсутвует то используется значение по умолчанию
-        // ./poker_tables -f 10 -s 200 -d false -l false -v true
         String path = null;
         if (args.length == 0) {
             path = DefaultPath;
@@ -60,18 +69,22 @@ public class Main {
         if (args.length > 0) {
             path = args[0];
             try {
-                // TODO
                 FilesLimit = Integer.parseInt(args[1]);
                 FilesSkip = Integer.parseInt(args[2]);
                 Debug = Boolean.parseBoolean(args[3]);
                 Learn = Boolean.parseBoolean(args[4]);
                 Validation = Boolean.parseBoolean(args[5]);
             } catch (Exception ignored) {
+                System.out.println("Error while loaded params.\r\nHelp:\r\nArgs example: /path/to/full/imgs/ IntCountOfImgs IntOffsetImgs BooleanDebug BooleanLearn BooleanValidate");
             }
         }
         if (Debug) {
+            Files.createDirectories(Paths.get(outputDebugFolder));
+            System.out.println("Help:\r\nArgs example: /path/to/full/imgs/ IntCountOfImgs IntOffsetImgs BooleanDebug BooleanLearn BooleanValidate");
             System.out.printf("Using path: %s\r", path);
         }
+
+
         try (Stream<Path> paths = Files.walk(Paths.get(path))) {
             paths
                     .filter(Files::isRegularFile)
@@ -82,28 +95,39 @@ public class Main {
                             pokerTableScreenshot -> {
                                 try {
                                     start = System.currentTimeMillis();
+                                    resultsLoadHashMapFromCsv();
                                     cardShapesLoadHashMapFromCsv();
-                                    System.out.printf(
-                                            "%s - %s\r\n",
-                                            pokerTableScreenshot.getFileName(),
-                                            recognizedStringForFullImage(pokerTableScreenshot).replace("--", ""));
+                                    result = recognizedStringForFullImage(pokerTableScreenshot).replace("--", "");
                                     end = System.currentTimeMillis();
                                     if (Debug) {
-                                        System.out.println(end - start);
+                                        System.out.printf("Time: %d\r\n", end - start);
                                     }
                                     if (Learn) {
                                         cardShapesSaveHashMapToCsv();
-                                    }
-                                    if (Validation) {
-                                        System.out.printf(
-                                                "Statistics: \r\nAllFiles: %d, Valid: %d, RecognizeErrors: %d. ",
-                                                AllItems, Valid, RecognizeError);
+                                        resultsSaveHashMapToCsv();
                                     }
                                 } catch (IOException e) {
                                     e.printStackTrace();
                                 }
                             });
+
+            if (Validation) {
+                System.out.printf(
+                        "Statistics: \r\nAllFiles: %d, Valid: %d, RecognizeErrors: %d.\r\n",
+                        AllItems, Valid, RecognizeError);
+
+                for (Map.Entry<String, String> error : Errors.entrySet()) {
+                    System.out.println("-###-###-");
+                    System.out.println("Error for: " + error.getValue());
+                    printImage(error.getKey());
+                }
+            }
         }
+
+        for (Map.Entry<String, String> resultd : ValidatedResults.entrySet()) {
+            System.out.printf("%s - %s\r\n", resultd.getKey(), resultd.getValue());
+        }
+
     }
 
     private static BufferedImage convertImageToBW(BufferedImage image) {
@@ -155,34 +179,61 @@ public class Main {
         BufferedImage whiteImage = convertShapeToLightMode(image, colorMode);
         BufferedImage cardNameBW = convertImageToBW(whiteImage.getSubimage(2, 5, 35, 25));
         String imageBinaryString = getBinaryStringForPixels(cardNameBW);
-        int min = minDiffer;
+
+        System.out.println("Last Chance: Eight Point Algo");
+
         String findSymbol = "?";
-        for (Map.Entry<String, String> entry : CardNames.entrySet()) {
-            int differs = compareShapeFunction(imageBinaryString, entry.getValue());
+        int differs = -1;
+        int min = 100;
+
+        for (Map.Entry<String, String> entry : CardShapes.entrySet()) {
+            differs = compareShapeFunction(imageBinaryString, entry.getValue());
             if (differs < min) {
                 min = differs;
                 findSymbol = entry.getKey();
+                System.out.println(findSymbol + ", difference: " + differs);
+            }
+        }
+        System.out.printf("Differs: %d\r\n", min);
+
+        if (Debug) {
+            if (min > minDiffer) {
+                System.out.println("Warning! Differ больше минимального!");
             }
         }
         card = findSymbol;
 
-        if (Learn || Debug ? findSymbol.equals("?") : false) {
+        // Learn || Debug ? findSymbol.equals("?") : false
+        if (Learn || findSymbol.equals("?")) {
             // open file
             openFile(
                     saveDebugImageToPath(cardNameBW, screenShotFile, DebugImagesTypes.CardNameBW, number));
             // valid or not
-            System.out.printf("Please validate image. This is %s?\r\n", findSymbol);
-            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-            String answer = br.readLine();
-            if (answer.equalsIgnoreCase("y") || answer.equalsIgnoreCase("")) {
-                card = findSymbol.trim().toUpperCase();
-            } else {
-                System.out.println("Please write a valid card name for this hash.");
-                br = new BufferedReader(new InputStreamReader(System.in));
-                answer = br.readLine();
-                CardNames.put(answer.trim().toUpperCase(), imageBinaryString);
-                card = answer.trim().toUpperCase();
+
+            // TODO NUMBER USING IN AUTOMATED RESULTS
+            if (ValidatedResults.containsValue(screenShotFile.getFileName())) {
+                char[] validVector = ValidatedResults.get(screenShotFile.getFileName()).toString().toCharArray();
+                if (Character.compare(validVector[number], findSymbol.toCharArray()[0]) == 0) {
+                    System.out.println("Automatic validation.");
+                } else {
+                    System.out.printf("Please validate image. This is %s?\r\n", findSymbol);
+                    BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+                    String answer = br.readLine();
+
+                    if (answer.equalsIgnoreCase("y") || answer.equals("")) {
+                        card = findSymbol.trim().toUpperCase();
+                    } else {
+                        RecognizeError++;
+                        System.out.println("Please write a valid card name for this hash.");
+                        br = new BufferedReader(new InputStreamReader(System.in));
+                        answer = br.readLine();
+                        CardShapes.put(answer.trim().toUpperCase(), imageBinaryString);
+                        Errors.put(imageBinaryString, answer.trim().toUpperCase());
+                        card = answer.trim().toUpperCase();
+                    }
+                }
             }
+
         }
         return card;
     }
@@ -204,13 +255,14 @@ public class Main {
 
     private static String getBinaryStringForPixels(BufferedImage symbol) {
         short whiteColor = -1;
+        System.out.println("I see:");
         StringBuilder binaryString = new StringBuilder();
         for (short y = 1; y < symbol.getHeight(); y++) {
             for (short x = 1; x < symbol.getWidth(); x++) {
                 int rgb = symbol.getRGB(x, y);
-                binaryString.append(rgb == whiteColor ? " " : "*");
+                binaryString.append(rgb == whiteColor ? "@" : "*");
                 if (Debug) {
-                    System.out.printf("%s", rgb == whiteColor ? " " : "*");
+                    System.out.printf("%s", rgb == whiteColor ? "@" : "*");
                 }
             }
             if (Debug) {
@@ -266,13 +318,35 @@ public class Main {
         if (Validation) {
             openFile(screenshotFilePath.toFile());
             System.out.printf("File: %s, Result: %s\r\n", screenshotFilePath.getFileName(), result);
-            System.out.print("Validate recognition:");
-            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-            String answer = br.readLine();
-            if (answer.equalsIgnoreCase("y") || answer.equalsIgnoreCase("")) {
-                Valid++;
+
+            String fileName = screenshotFilePath.getFileName().toString();
+            String r_result = result.toString().replace("--", "").replace("\r", "");
+
+            if (ValidatedResults.get(fileName) != null) {
+                if (ValidatedResults.get(fileName).equals(r_result)) {
+                    System.out.printf("Automatic validation. Result: %s for file: %s", result, screenshotFilePath.getFileName());
+                    Valid++;
+                } else {
+                    System.out.print("Validate recognition:");
+                    BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+                    String answer = br.readLine();
+                    if (answer.equalsIgnoreCase("y") || answer.equalsIgnoreCase("")) {
+                        ValidatedResults.put(screenshotFilePath.getFileName().toString(), result.toString());
+                        Valid++;
+                    } else {
+                        RecognizeError++;
+                    }
+                }
             } else {
-                RecognizeError++;
+                System.out.print("Validate recognition:");
+                BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+                String answer = br.readLine();
+                if (answer.equalsIgnoreCase("y") || answer.equalsIgnoreCase("")) {
+                    ValidatedResults.put(screenshotFilePath.getFileName().toString(), result.toString());
+                    Valid++;
+                } else {
+                    RecognizeError++;
+                }
             }
             AllItems++;
         }
@@ -293,7 +367,9 @@ public class Main {
                 desktop = Desktop.getDesktop();
             }
             if (desktop != null) {
-                desktop.open(file);
+                if (NativeOpen) {
+                    desktop.open(file);
+                }
             }
         } catch (IOException ioe) {
             ioe.printStackTrace();
@@ -301,7 +377,7 @@ public class Main {
     }
 
     private static EnumCardSuit cardSuitForCardImage(BufferedImage image) {
-        EnumCardSuit mast = null;
+        EnumCardSuit suit = null;
         Point secondLayerPoint;
 
         EnumCardColors colorForPoint = colorForPoint(image);
@@ -311,18 +387,18 @@ public class Main {
                 secondLayerPoint = CheckPixelCoordinate.get(EnumCardColors.Black);
                 secondLayerColor = CardsCharsMap.get(image.getRGB(secondLayerPoint.x, secondLayerPoint.y));
                 if (secondLayerColor == EnumCardColors.Black) {
-                    mast = EnumCardSuit.Spades;
+                    suit = EnumCardSuit.Spades;
                 } else {
-                    mast = EnumCardSuit.Clubs;
+                    suit = EnumCardSuit.Clubs;
                 }
                 break;
             case Red:
                 secondLayerPoint = CheckPixelCoordinate.get(EnumCardColors.Red);
                 secondLayerColor = CardsCharsMap.get(image.getRGB(secondLayerPoint.x, secondLayerPoint.y));
                 if (secondLayerColor == EnumCardColors.Red) {
-                    mast = EnumCardSuit.Diamonds;
+                    suit = EnumCardSuit.Diamonds;
                 } else {
-                    mast = EnumCardSuit.Hearts;
+                    suit = EnumCardSuit.Hearts;
                 }
                 break;
             case empty:
@@ -332,7 +408,35 @@ public class Main {
                 break;
         }
 
-        return mast;
+        return suit;
+    }
+
+    public static void resultsLoadHashMapFromCsv() throws IOException {
+        final BufferedReader br = new BufferedReader(new FileReader("validated_results.csv"));
+        while (br.ready()) {
+            resultLoadHashMapFromString(new Result(br.readLine()));
+        }
+        if (Debug) {
+            System.out.printf("Validated results in model: %d\r\n", (long) ValidatedResults.entrySet().size());
+        }
+    }
+
+    private static void resultLoadHashMapFromString(Result result) {
+        if (!CardShapes.containsKey(result.getFileName())) {
+            ValidatedResults.put(result.getFileName(), result.getRecognizedValue());
+        }
+    }
+
+    private static void resultsSaveHashMapToCsv() {
+        String eol = System.getProperty("line.separator");
+        try (Writer writer = new FileWriter("validated_results.csv")) {
+            writer.write("");
+            for (HashMap.Entry<String, String> entry : ValidatedResults.entrySet()) {
+                writer.append(entry.getKey()).append(';').append(entry.getValue()).append(eol);
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace(System.err);
+        }
     }
 
     public static void cardShapesLoadHashMapFromCsv() throws IOException {
@@ -341,13 +445,13 @@ public class Main {
             cardShapeLoadHashMapFromString(new CardName(br.readLine()));
         }
         if (Debug) {
-            System.out.printf("Hashes in model: %d\r\n", (long) CardNames.entrySet().size());
+            System.out.printf("Hashes in model: %d\r\n", (long) CardShapes.entrySet().size());
         }
     }
 
     private static void cardShapeLoadHashMapFromString(CardName cardName) {
-        if (!CardNames.containsKey(cardName.getName())) {
-            CardNames.put(cardName.getName(), cardName.getHash());
+        if (!CardShapes.containsKey(cardName.getName())) {
+            CardShapes.put(cardName.getName(), cardName.getHash());
         }
     }
 
@@ -355,60 +459,12 @@ public class Main {
         String eol = System.getProperty("line.separator");
         try (Writer writer = new FileWriter("card_shapes.csv")) {
             writer.write("");
-            for (Map.Entry<String, String> entry : CardNames.entrySet()) {
+            for (HashMap.Entry<String, String> entry : CardShapes.entrySet()) {
                 writer.append(entry.getKey()).append(';').append(entry.getValue()).append(eol);
             }
         } catch (IOException ex) {
             ex.printStackTrace(System.err);
         }
-    }
-
-    private static class CardName {
-        String name;
-        String hash;
-
-        public CardName(String line) {
-            this.name = line.split(";")[0];
-            this.hash = line.split(";")[1];
-        }
-
-        public String getName() {
-            return this.name;
-        }
-
-        public String getHash() {
-            return this.hash;
-        }
-    }
-
-    private static class Point {
-        int x;
-        int y;
-
-        public Point(int x, int y) {
-            this.x = x;
-            this.y = y;
-        }
-    }
-
-    private enum EnumCardColors {
-        Black,
-        Red,
-        White,
-        empty,
-        yellow
-    }
-
-    private enum EnumCardSuit {
-        Diamonds, // ♦️ Diamonds
-        Hearts, // ♥️ Hearts
-        Spades, // ♠️ Spades
-        Clubs, // ♣️ Clubs
-    }
-
-    private enum EnumCardColorMode {
-        Darker, // ▓
-        Normal // ⬜️
     }
 
     private static File saveDebugImageToPath(
@@ -464,10 +520,91 @@ public class Main {
         return null;
     }
 
+    private enum EnumCardColors {
+        Black,
+        Red,
+        White,
+        empty,
+        yellow
+    }
+
+    private enum EnumCardSuit {
+        Diamonds, // ♦️ Diamonds
+        Hearts, // ♥️ Hearts
+        Spades, // ♠️ Spades
+        Clubs, // ♣️ Clubs
+    }
+
+    private enum EnumCardColorMode {
+        Darker, // ▓
+        Normal // ⬜️
+    }
+
     private enum DebugImagesTypes {
         Full,
         Center,
         CardImage,
         CardNameBW
+    }
+
+    private static class CardName {
+        String name;
+        String hash;
+
+        public CardName(String line) {
+            this.name = line.split(";")[0];
+            this.hash = line.split(";")[1];
+        }
+
+        public String getName() {
+            return this.name;
+        }
+
+        public String getHash() {
+            return this.hash;
+        }
+    }
+
+    private static class Result {
+        String fileName;
+        String recognizedValue;
+
+        public Result(String line) {
+            this.fileName = line.split(";")[0];
+            this.recognizedValue = line.split(";")[1];
+        }
+
+        public String getFileName() {
+            return this.fileName;
+        }
+
+        public String getRecognizedValue() {
+            return this.recognizedValue;
+        }
+    }
+
+
+    private static class Point {
+        int x;
+        int y;
+
+        public Point(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    static void printImage(String string) {
+        System.out.println("is see:");
+
+        char[] chars = string.replace("\n", "").toCharArray();
+        for (int i = 1; i <= chars.length; i++) {
+            System.out.printf("%c", chars[i - 1]);
+            if (i % 34 == 0) {
+                System.out.println("");
+            }
+        }
+        System.out.println("This code:");
+        System.out.println(string.replace("\n", ""));
     }
 }
