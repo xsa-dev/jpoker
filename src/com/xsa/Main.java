@@ -14,23 +14,17 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 public class Main {
-
-    //
-    static String result = null;
-
-    static final String DefaultPath = "./poker_tables/";
+    // general
+    static String result;
     // recognize options
-    static final String outputDebugFolder = "./debug_output/";
-    static final String defaultImageType = "png";
+    static final String DefaultPath = "./poker_tables/", outputDebugFolder = "./debug_output/", defaultImageType = "png";
     static final int cardWith = 63, fullImageTopOffset = 64, minDiffer = 75;
     // default options
     static boolean Debug = false, Learn = false, Validation = false, NativeOpen = false;
     static int FilesLimit = 500, FilesSkip = 0;
     // statistics
     static int Valid, RecognizeError, AllItems = 0;
-    static long start;
-    static long end;
-
+    static long start, end;
     // model
     static HashMap<String, String> CardShapes =
             new HashMap<>();
@@ -60,7 +54,6 @@ public class Main {
     static HashMap<String, String> Errors =
             new HashMap<>();
 
-
     public static void main(String[] args) throws IOException {
         String path = null;
         if (args.length == 0) {
@@ -83,8 +76,6 @@ public class Main {
             System.out.println("Help:\r\nArgs example: /path/to/full/imgs/ IntCountOfImgs IntOffsetImgs BooleanDebug BooleanLearn BooleanValidate");
             System.out.printf("Using path: %s\r", path);
         }
-
-
         try (Stream<Path> paths = Files.walk(Paths.get(path))) {
             paths
                     .filter(Files::isRegularFile)
@@ -110,12 +101,10 @@ public class Main {
                                     e.printStackTrace();
                                 }
                             });
-
             if (Validation) {
                 System.out.printf(
                         "Statistics: \r\nAllFiles: %d, Valid: %d, RecognizeErrors: %d.\r\n",
                         AllItems, Valid, RecognizeError);
-
                 for (Map.Entry<String, String> error : Errors.entrySet()) {
                     System.out.println("-###-###-");
                     System.out.println("Error for: " + error.getValue());
@@ -123,11 +112,9 @@ public class Main {
                 }
             }
         }
-
         for (Map.Entry<String, String> resultd : ValidatedResults.entrySet()) {
             System.out.printf("%s - %s\r\n", resultd.getKey(), resultd.getValue());
         }
-
     }
 
     private static BufferedImage convertImageToBW(BufferedImage image) {
@@ -171,7 +158,6 @@ public class Main {
             throws IOException {
         String card;
         EnumCardColors cardColor = colorForPoint(image);
-
         if (!cardColor.equals(EnumCardColors.Red) && !cardColor.equals(EnumCardColors.Black)) {
             return "-";
         }
@@ -179,9 +165,7 @@ public class Main {
         BufferedImage whiteImage = convertShapeToLightMode(image, colorMode);
         BufferedImage cardNameBW = convertImageToBW(whiteImage.getSubimage(2, 5, 35, 25));
         String imageBinaryString = getBinaryStringForPixels(cardNameBW);
-
         System.out.println("Last Chance: Eight Point Algo");
-
         String findSymbol = "?";
         int differs = -1;
         int min = 100;
@@ -194,22 +178,16 @@ public class Main {
                 System.out.println(findSymbol + ", difference: " + differs);
             }
         }
-        System.out.printf("Differs: %d\r\n", min);
-
         if (Debug) {
+            System.out.printf("Differs: %d\r\n", min);
             if (min > minDiffer) {
                 System.out.println("Warning! Differ больше минимального!");
             }
         }
         card = findSymbol;
-
-        // Learn || Debug ? findSymbol.equals("?") : false
         if (Learn || findSymbol.equals("?")) {
-            // open file
             openFile(
                     saveDebugImageToPath(cardNameBW, screenShotFile, DebugImagesTypes.CardNameBW, number));
-            // valid or not
-
             // TODO NUMBER USING IN AUTOMATED RESULTS
             if (ValidatedResults.containsValue(screenShotFile.getFileName())) {
                 char[] validVector = ValidatedResults.get(screenShotFile.getFileName()).toString().toCharArray();
@@ -324,7 +302,7 @@ public class Main {
 
             if (ValidatedResults.get(fileName) != null) {
                 if (ValidatedResults.get(fileName).equals(r_result)) {
-                    System.out.printf("Automatic validation. Result: %s for file: %s", result, screenshotFilePath.getFileName());
+                    System.out.printf("Automatic validation. Result -> EqualsOk: [%s] for file: %s\r\n", result.toString().replace("\r", ""), screenshotFilePath.getFileName());
                     Valid++;
                 } else {
                     System.out.print("Validate recognition:");
@@ -583,7 +561,6 @@ public class Main {
         }
     }
 
-
     private static class Point {
         int x;
         int y;
@@ -596,7 +573,6 @@ public class Main {
 
     static void printImage(String string) {
         System.out.println("is see:");
-
         char[] chars = string.replace("\n", "").toCharArray();
         for (int i = 1; i <= chars.length; i++) {
             System.out.printf("%c", chars[i - 1]);
