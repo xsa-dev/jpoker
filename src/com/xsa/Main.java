@@ -55,6 +55,13 @@ public class Main {
             new HashMap<>();
 
     public static void main(String[] args) throws IOException {
+        // some debug optimization dumb
+        BufferedImage dumb =
+                new BufferedImage(10, 10, BufferedImage.TYPE_BYTE_BINARY);
+        Graphics2D graphics = dumb.createGraphics();
+        graphics.drawImage(dumb, 0, 0, null);
+
+
         String path = null;
         if (args.length == 0) {
             path = DefaultPath;
