@@ -17,10 +17,10 @@ public class Main {
     // general
     static String result;
     // recognize options
-    static final String DefaultPath = "./poker_tables/", outputDebugFolder = "./debug_output/", defaultImageType = "png";
-    static final int cardWith = 63, fullImageTopOffset = 64, minDiffer = 75;
+    static final String DefaultPath = "./poker_tables/", outputDebugFolder = "./debug_output/", defaultImageType = "png", validatedResultsFile = "validated_results.csv", cardShapesFile = "card_shapes.csv";
+    static final int cardWith = 63, fullImageTopOffset = 64, minDiffer = 101;
     // default options
-    static boolean Debug = false, Learn = false, Validation = false, NativeOpen = false;
+    static boolean Debug = false, Learn = false, Validation = false;
     static int FilesLimit = 500, FilesSkip = 0;
     // statistics
     static int Valid, RecognizeError, AllItems = 0;
@@ -74,7 +74,6 @@ public class Main {
         if (Debug) {
             Files.createDirectories(Paths.get(outputDebugFolder));
             System.out.println("Help:\r\nArgs example: /path/to/full/imgs/ IntCountOfImgs IntOffsetImgs BooleanDebug BooleanLearn BooleanValidate");
-            System.out.printf("Using path: %s\r", path);
         }
         try (Stream<Path> paths = Files.walk(Paths.get(path))) {
             paths
@@ -85,17 +84,20 @@ public class Main {
                     .forEach(
                             pokerTableScreenshot -> {
                                 try {
-                                    start = System.currentTimeMillis();
-                                    resultsLoadHashMapFromCsv();
-                                    cardShapesLoadHashMapFromCsv();
+                                    LoadCsvToHashMap(ValidatedResults, validatedResultsFile, DataType.Results);
+                                    LoadCsvToHashMap(CardShapes, cardShapesFile, DataType.Cards);
                                     result = recognizedStringForFullImage(pokerTableScreenshot).replace("--", "");
-                                    end = System.currentTimeMillis();
+                                    long time = end - start;
                                     if (Debug) {
-                                        System.out.printf("Time: %d\r\n", end - start);
+                                        System.out.printf("Time: %d: %s - %s\r\n", time, pokerTableScreenshot.getFileName(), result);
+                                    } else {
+                                        System.out.printf("%s - %s\r\n", pokerTableScreenshot.getFileName(), result);
                                     }
                                     if (Learn) {
-                                        cardShapesSaveHashMapToCsv();
-                                        resultsSaveHashMapToCsv();
+                                        SaveCsvFromHashMap(CardShapes, cardShapesFile, DataType.Results);
+                                    }
+                                    if (Validation) {
+                                        SaveCsvFromHashMap(ValidatedResults, validatedResultsFile, DataType.Results);
                                     }
                                 } catch (IOException e) {
                                     e.printStackTrace();
@@ -112,8 +114,11 @@ public class Main {
                 }
             }
         }
-        for (Map.Entry<String, String> resultd : ValidatedResults.entrySet()) {
-            System.out.printf("%s - %s\r\n", resultd.getKey(), resultd.getValue());
+        if (Debug || Validation) {
+            System.out.printf("Validation map count: %d", ValidatedResults.entrySet().size());
+            for (Map.Entry<String, String> resultd : ValidatedResults.entrySet()) {
+                System.out.printf("%s - %s\r\n", resultd.getKey(), resultd.getValue());
+            }
         }
     }
 
@@ -165,7 +170,7 @@ public class Main {
         BufferedImage whiteImage = convertShapeToLightMode(image, colorMode);
         BufferedImage cardNameBW = convertImageToBW(whiteImage.getSubimage(2, 5, 35, 25));
         String imageBinaryString = getBinaryStringForPixels(cardNameBW);
-        System.out.println("Last Chance: Eight Point Algo");
+//        System.out.println("Last Chance: Eight Point Algo");
         String findSymbol = "?";
         int differs = -1;
         int min = 100;
@@ -175,10 +180,10 @@ public class Main {
             if (differs < min) {
                 min = differs;
                 findSymbol = entry.getKey();
-                System.out.println(findSymbol + ", difference: " + differs);
+//                System.out.println(findSymbol + ", difference: " + differs);
             }
         }
-        if (Debug) {
+        if (Validation) {
             System.out.printf("Differs: %d\r\n", min);
             if (min > minDiffer) {
                 System.out.println("Warning! Differ больше минимального!");
@@ -186,9 +191,6 @@ public class Main {
         }
         card = findSymbol;
         if (Learn || findSymbol.equals("?")) {
-            openFile(
-                    saveDebugImageToPath(cardNameBW, screenShotFile, DebugImagesTypes.CardNameBW, number));
-            // TODO NUMBER USING IN AUTOMATED RESULTS
             if (ValidatedResults.containsValue(screenShotFile.getFileName())) {
                 char[] validVector = ValidatedResults.get(screenShotFile.getFileName()).toString().toCharArray();
                 if (Character.compare(validVector[number], findSymbol.toCharArray()[0]) == 0) {
@@ -233,20 +235,18 @@ public class Main {
 
     private static String getBinaryStringForPixels(BufferedImage symbol) {
         short whiteColor = -1;
-        System.out.println("I see:");
         StringBuilder binaryString = new StringBuilder();
         for (short y = 1; y < symbol.getHeight(); y++) {
             for (short x = 1; x < symbol.getWidth(); x++) {
                 int rgb = symbol.getRGB(x, y);
                 binaryString.append(rgb == whiteColor ? "@" : "*");
-                if (Debug) {
+                if (Validation) {
                     System.out.printf("%s", rgb == whiteColor ? "@" : "*");
                 }
             }
-            if (Debug) {
+            if (Validation) {
                 System.out.println("");
             }
-            ;
         }
         return binaryString.toString();
     }
@@ -254,7 +254,7 @@ public class Main {
     private static BufferedImage[] getCardVectorFromFullImage(BufferedImage full, Path object)
             throws IOException {
         // считываем цент экрана
-        BufferedImage crop = full.getSubimage(120, 521, full.getWidth() - 220, 89);
+        BufferedImage crop = full.getSubimage(120, 521, full.getWidth() - 220, 89); // TODO to final const
         BufferedImage[] cardVector = new BufferedImage[5];
         int indexOfCard = 0;
         for (int fileIndex = 0; fileIndex < full.getWidth() - 220; fileIndex++) {
@@ -271,17 +271,13 @@ public class Main {
 
     private static String recognizedStringForFullImage(Path screenshotFilePath) throws IOException {
         StringBuilder result = new StringBuilder();
-
+        start = System.currentTimeMillis();
         // считываем полную картинку
         BufferedImage img = ImageIO.read(screenshotFilePath.toFile());
         int verticalOffset = fullImageTopOffset;
-
         BufferedImage full =
                 img.getSubimage(0, verticalOffset, img.getWidth(), img.getHeight() - verticalOffset);
-        saveDebugImageToPath(full, screenshotFilePath, DebugImagesTypes.Full);
-
         BufferedImage[] cardVector = getCardVectorFromFullImage(full, screenshotFilePath);
-
         for (int index = 0;
              index < Arrays.stream(cardVector).filter(Objects::nonNull).toArray().length;
              index++) {
@@ -290,16 +286,12 @@ public class Main {
             result.append(card);
             result.append(cardSuit.toString().substring(0, 1).toLowerCase());
         }
-
         result.append("\r");
-
+        end = System.currentTimeMillis();
         if (Validation) {
-            openFile(screenshotFilePath.toFile());
             System.out.printf("File: %s, Result: %s\r\n", screenshotFilePath.getFileName(), result);
-
             String fileName = screenshotFilePath.getFileName().toString();
             String r_result = result.toString().replace("--", "").replace("\r", "");
-
             if (ValidatedResults.get(fileName) != null) {
                 if (ValidatedResults.get(fileName).equals(r_result)) {
                     System.out.printf("Automatic validation. Result -> EqualsOk: [%s] for file: %s\r\n", result.toString().replace("\r", ""), screenshotFilePath.getFileName());
@@ -328,7 +320,6 @@ public class Main {
             }
             AllItems++;
         }
-
         return result.toString();
     }
 
@@ -336,22 +327,6 @@ public class Main {
         Point firstLayer = new Point(41, 69);
         int rgb_int = image.getRGB(firstLayer.x, firstLayer.y);
         return CardsCharsMap.get(rgb_int);
-    }
-
-    private static void openFile(File file) {
-        try {
-            Desktop desktop = null;
-            if (Desktop.isDesktopSupported()) {
-                desktop = Desktop.getDesktop();
-            }
-            if (desktop != null) {
-                if (NativeOpen) {
-                    desktop.open(file);
-                }
-            }
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
-        }
     }
 
     private static EnumCardSuit cardSuitForCardImage(BufferedImage image) {
@@ -389,113 +364,45 @@ public class Main {
         return suit;
     }
 
-    public static void resultsLoadHashMapFromCsv() throws IOException {
-        final BufferedReader br = new BufferedReader(new FileReader("validated_results.csv"));
+    private static void LoadCsvToHashMap(HashMap hashMap, String fileName, DataType dataType) throws IOException {
+        final BufferedReader br = new BufferedReader(new FileReader(fileName));
         while (br.ready()) {
-            resultLoadHashMapFromString(new Result(br.readLine()));
+            if (DataType.Cards.equals(dataType)) {
+                LoadHashMapFromString(dataType, new CardName(br.readLine()));
+            }
+            if (DataType.Results.equals(dataType)) {
+                LoadHashMapFromString(dataType, new Result(br.readLine()));
+            }
         }
-        if (Debug) {
-            System.out.printf("Validated results in model: %d\r\n", (long) ValidatedResults.entrySet().size());
+        if (Validation) {
+            long lenght = 0;
+            if (DataType.Cards.equals(dataType)) {
+                lenght = (long) CardShapes.entrySet().size();
+            }
+            if (DataType.Results.equals(dataType)) {
+                lenght = (long) ValidatedResults.entrySet().size();
+            }
+            System.out.printf("Validated results in model: %d\r\n", lenght);
         }
     }
 
-    private static void resultLoadHashMapFromString(Result result) {
-        if (!CardShapes.containsKey(result.getFileName())) {
-            ValidatedResults.put(result.getFileName(), result.getRecognizedValue());
-        }
-    }
-
-    private static void resultsSaveHashMapToCsv() {
+    private static void SaveCsvFromHashMap(HashMap<String, String> hashMap, String fileName, Enum dataType) throws IOException {
         String eol = System.getProperty("line.separator");
-        try (Writer writer = new FileWriter("validated_results.csv")) {
+        try (Writer writer = new FileWriter(fileName)) {
             writer.write("");
-            for (HashMap.Entry<String, String> entry : ValidatedResults.entrySet()) {
+            for (HashMap.Entry<String, String> entry : hashMap.entrySet()) {
                 writer.append(entry.getKey()).append(';').append(entry.getValue()).append(eol);
             }
-        } catch (IOException ex) {
-            ex.printStackTrace(System.err);
         }
     }
 
-    public static void cardShapesLoadHashMapFromCsv() throws IOException {
-        final BufferedReader br = new BufferedReader(new FileReader("card_shapes.csv"));
-        while (br.ready()) {
-            cardShapeLoadHashMapFromString(new CardName(br.readLine()));
+    private static void LoadHashMapFromString(DataType type, Object obj) {
+        if (obj instanceof Result) {
+            ValidatedResults.put(((Result) obj).getFileName(), ((Result) obj).getRecognizedValue());
         }
-        if (Debug) {
-            System.out.printf("Hashes in model: %d\r\n", (long) CardShapes.entrySet().size());
+        if (obj instanceof CardName) {
+            CardShapes.put(((CardName) obj).getName(), ((CardName) obj).getHash());
         }
-    }
-
-    private static void cardShapeLoadHashMapFromString(CardName cardName) {
-        if (!CardShapes.containsKey(cardName.getName())) {
-            CardShapes.put(cardName.getName(), cardName.getHash());
-        }
-    }
-
-    private static void cardShapesSaveHashMapToCsv() {
-        String eol = System.getProperty("line.separator");
-        try (Writer writer = new FileWriter("card_shapes.csv")) {
-            writer.write("");
-            for (HashMap.Entry<String, String> entry : CardShapes.entrySet()) {
-                writer.append(entry.getKey()).append(';').append(entry.getValue()).append(eol);
-            }
-        } catch (IOException ex) {
-            ex.printStackTrace(System.err);
-        }
-    }
-
-    private static File saveDebugImageToPath(
-            BufferedImage image, Path screenShotFile, DebugImagesTypes fileType) throws IOException {
-        if (Debug) {
-            File file = null;
-
-            switch (fileType) {
-                case Full:
-                    file =
-                            new File(String.format("%sfull_%s", outputDebugFolder, screenShotFile.getFileName()));
-                    break;
-                case Center:
-                    file =
-                            new File(String.format("%scrop_%s", outputDebugFolder, screenShotFile.getFileName()));
-
-                default:
-                    break;
-            }
-
-            ImageIO.write(image, defaultImageType, file);
-
-            return file;
-        }
-        return null;
-    }
-
-    private static File saveDebugImageToPath(
-            BufferedImage image, Path screenShotFile, DebugImagesTypes fileType, int number)
-            throws IOException {
-        if (Debug) {
-            File file = null;
-
-            switch (fileType) {
-                case CardNameBW:
-                    file =
-                            new File(
-                                    String.format(
-                                            "%sCrop_%s_%d_name_BW.%s",
-                                            outputDebugFolder, screenShotFile.getFileName(), number, defaultImageType));
-                    ImageIO.write(image, defaultImageType, file);
-                    break;
-                case CardImage:
-
-                default:
-                    break;
-            }
-
-            ImageIO.write(image, defaultImageType, file);
-
-            return file;
-        }
-        return null;
     }
 
     private enum EnumCardColors {
@@ -523,6 +430,11 @@ public class Main {
         Center,
         CardImage,
         CardNameBW
+    }
+
+    private enum DataType {
+        Cards,
+        Results
     }
 
     private static class CardName {
