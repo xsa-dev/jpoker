@@ -18,7 +18,7 @@ public class Main {
     static String result;
     // recognize options
     static final String DefaultPath = "./poker_tables/", outputDebugFolder = "./debug_output/", defaultImageType = "png", validatedResultsFile = "validated_results.csv", cardShapesFile = "card_shapes.csv";
-    static final int cardWith = 63, fullImageTopOffset = 64, minDiffer = 101;
+    static final int cardWith = 63, fullImageTopOffset = 64, minDiffer = 99;
     // default options
     static boolean Debug = false, Learn = false, Validation = false;
     static int FilesLimit = 500, FilesSkip = 0;
