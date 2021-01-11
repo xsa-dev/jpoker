@@ -1,0 +1,1 @@
+.\jre1.8.0_271\bin\java -jar .\JPOKER_jar\JPOKER.jar %1 %2 %3 %4 %5 %6
