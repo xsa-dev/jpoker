@@ -105,7 +105,7 @@ public class Main {
                                 try {
                                     result = recognizeFullImage(pokerTableScreenshot).replace("--", "");
                                 } catch (IOException e) {
-                                    System.out.printf("Ошибка при распознавании. Проверьте модель и параметры.\r\n%s", e.getMessage());
+                                    System.out.printf("Ошибка при распознавании. Проверьте CSV-модель и правильность параметров.\r\n%s", e.getMessage());
                                 }
                                 long time = end - start;
                                 if (Debug) {
