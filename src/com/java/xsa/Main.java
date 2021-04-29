@@ -1,14 +1,14 @@
 package com.java.xsa;
 
 import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
 import java.awt.Graphics2D;
-import java.io.InputStreamReader;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.Writer;
-import java.io.FileWriter;
+import java.awt.image.BufferedImage;
 import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.Writer;
+import java.io.IOException;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -20,10 +20,12 @@ import java.util.stream.Stream;
 
 public class Main {
     // recognize
-    private static final String DefaultPath = "../imgs/", defaultImageType = "png", validatedResultsFile = "model/validated_results.csv", cardShapesFile = "model/card_shapes.csv";
+    public static String DefaultPath = "../imgs/";
+    private static final String defaultImageType = "png", validatedResultsFile = "model/validated_results.csv", cardShapesFile = "model/card_shapes.csv";
     private static final int cardWith = 63, fullImageTopOffset = 64, minDiffer = 99, cropLeftOffset = 120, cropTopOffset = 521, cropWidthOffset = 220, cropHeightOffset = 89;
     // strings
-    private static String result, eol = System.getProperty("line.separator");
+    private static String result;
+    private static final String eol = System.getProperty("line.separator");
     // options
     private static boolean Debug = false, Learn = false, Validation = false;
     private static int FilesLimit = 9999, FilesSkip = 0;
@@ -31,9 +33,9 @@ public class Main {
     private static int Valid, RecognizeError, AllItems = 0;
     private static long start, end;
     // model
-    private static HashMap<String, String> CardShapes =
+    private static final HashMap<String, String> CardShapes =
             new HashMap<>();
-    private static HashMap<Integer, EnumCardColors> CardsCharsMap =
+    private static final HashMap<Integer, EnumCardColors> CardsCharsMap =
             new HashMap<Integer, EnumCardColors>() {
                 {
                     put(-14474458, EnumCardColors.Black);
@@ -47,16 +49,16 @@ public class Main {
                     put(-678365, EnumCardColors.yellow); //
                 }
             };
-    private static HashMap<EnumCardColors, Point> CheckPixelCoordinate =
+    private static final HashMap<EnumCardColors, Point> CheckPixelCoordinate =
             new HashMap<EnumCardColors, Point>() {
                 {
                     put(EnumCardColors.Black, new Point(33, 60)); // clubs
                     put(EnumCardColors.Red, new Point(42, 54)); // hearts
                 }
             };
-    private static HashMap<String, String> ValidatedResults =
+    private static final HashMap<String, String> ValidatedResults =
             new HashMap<>();
-    private static HashMap<String, String> Errors =
+    private static final HashMap<String, String> Errors =
             new HashMap<>();
 
     public static void main(String[] args) {
@@ -124,7 +126,7 @@ public class Main {
                                     try {
                                         saveModelToCsv(ValidatedResults, validatedResultsFile);
                                     } catch (IOException e) {
-                                        System.out.printf("Не удалось сохранить провалидированные результаты.\r\n%s", e.getMessage());
+                                        System.out.printf("Не удалось сохранить проверенные результаты.\r\n%s", e.getMessage());
                                     }
                                 }
                             });
@@ -137,8 +139,7 @@ public class Main {
                     printBinaryImage(error.getKey());
                 }
             }
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             System.out.printf("Ошибка загрузки файлов. Проверьте доступность папки с картинками.\r\n%s", e.getMessage());
         }
     }
@@ -275,7 +276,7 @@ public class Main {
         BufferedImage cardValueBW = convertImageToBW(whiteImage.getSubimage(2, 5, 35, 25));
         String imageBinaryString = convertToBinaryString(cardValueBW);
         String findSymbol = "?";
-        int differs = -1;
+        int differs;
         int min = 100;
         for (Map.Entry<String, String> entry : CardShapes.entrySet()) {
             differs = compareValue(imageBinaryString, entry.getValue());
@@ -326,13 +327,9 @@ public class Main {
             for (short x = 1; x < image.getWidth(); x++) {
                 int rgb = image.getRGB(x, y);
                 binaryString.append(rgb == whiteColor ? "@" : "*");
-                if (Learn || Validation) {
-                    System.out.printf("%s", rgb == whiteColor ? "@" : "*");
-                }
+                if (Learn || Validation) System.out.printf("%s", rgb == whiteColor ? "@" : "*");
             }
-            if (Learn || Validation) {
-                System.out.println("");
-            }
+            if (Learn || Validation) System.out.println();
         }
         return binaryString.toString();
     }
@@ -358,7 +355,7 @@ public class Main {
         for (int i = 1; i <= chars.length; i++) {
             System.out.printf("%c", chars[i - 1]);
             if (i % 34 == 0) {
-                System.out.println("");
+                System.out.println();
             }
         }
         System.out.printf("This code: %s%s", string, eol);
@@ -369,7 +366,7 @@ public class Main {
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         String answer = br.readLine();
         if (answer.equalsIgnoreCase("y") || answer.equalsIgnoreCase("")) {
-            ValidatedResults.put(screenshotFilePath.getFileName().toString(), result.toString());
+            ValidatedResults.put(screenshotFilePath.getFileName().toString(), result);
             Valid++;
         } else {
             RecognizeError++;
@@ -388,14 +385,10 @@ public class Main {
             }
         }
         if (Validation) {
-            long lenght = 0;
-            if (EnumDataType.Cards.equals(enumDataType)) {
-                lenght = (long) CardShapes.entrySet().size();
-            }
-            if (EnumDataType.Results.equals(enumDataType)) {
-                lenght = (long) ValidatedResults.entrySet().size();
-            }
-            System.out.printf("Validated %s in model: %d%s", enumDataType, lenght, eol);
+            long size = 0;
+            if (EnumDataType.Cards.equals(enumDataType)) size = CardShapes.entrySet().size();
+            if (EnumDataType.Results.equals(enumDataType)) size = ValidatedResults.entrySet().size();
+            System.out.printf("Validated %s in model: %d%s", enumDataType, size, eol);
         }
     }
 
@@ -438,7 +431,6 @@ public class Main {
 
     private static class Result {
         String fileName;
-
         String recognizedValue;
 
         public Result(String line) {
@@ -457,7 +449,6 @@ public class Main {
 
     private static class Point {
         int x;
-
         int y;
 
         public Point(int x, int y) {
@@ -475,12 +466,10 @@ public class Main {
     }
 
     private enum EnumCardSuit {
-        Diamonds, // ♦️ Diamonds
-
-        Hearts, // ♥️ Hearts
-        Spades, // ♠️ Spades
-
-        Clubs, // ♣️ Clubs
+        Diamonds, // ♦️
+        Hearts, // ♥️
+        Spades, // ♠️
+        Clubs, // ♣️
     }
 
     private enum EnumCardMode {
@@ -491,6 +480,5 @@ public class Main {
     private enum EnumDataType {
         Cards,
         Results
-
     }
 }

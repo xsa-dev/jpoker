@@ -13,6 +13,9 @@
 - model/card_shapes.csv - словарь строковых представлений имён карт
 - model/validated_results.csv - тестовые данные для валидации алгоритма
 
+# TEST
+Данные для тестов: https://disk.yandex.ru/d/E4ZiwB5wJdgp8g
+
 # HOW TO USE
 
 Для запуска используйте run.bat передав в него параметр с путём к папке с картинками.   
@@ -45,3 +48,5 @@ run.bat с:\Downloads\java_test_task\imgs\ 100 20 true false false
 # CONTACT
 telegram: https://t.me/xsa_tg  
 email: i@alekseysavin.com
+
+
